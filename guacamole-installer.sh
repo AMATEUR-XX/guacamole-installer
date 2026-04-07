@@ -21,7 +21,7 @@ log "Installing Apache Guacamole + ser2net"
 export DEBIAN_FRONTEND=noninteractive
 apt update
 apt upgrade -y
-apt install -y docker.io docker-compose-plugin ser2net curl ca-certificates python3 python3-venv python3-pip rsync git openssl
+apt install -y docker.io docker-compose ser2net curl ca-certificates python3 python3-venv python3-pip rsync git openssl
 
 if ! systemctl is-active --quiet docker; then
   systemctl enable --now docker
@@ -80,7 +80,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    container_name: guac-mysql
+    container_name: mysql
     restart: always
     command: --default-authentication-plugin=mysql_native_password
     environment:
@@ -97,17 +97,17 @@ services:
       - ./mysql_data:/var/lib/mysql
 EOF
 
-docker compose up -d
+docker-compose up -d
 
 log "Waiting for MySQL healthcheck..."
 for _ in $(seq 1 60); do
-  if docker inspect -f '{{.State.Health.Status}}' guac-mysql 2>/dev/null | grep -q "healthy"; then
+  if docker inspect -f '{{.State.Health.Status}}' mysql 2>/dev/null | grep -q "healthy"; then
     break
   fi
   sleep 2
 done
 
-if ! docker inspect -f '{{.State.Health.Status}}' guac-mysql 2>/dev/null | grep -q "healthy"; then
+if ! docker inspect -f '{{.State.Health.Status}}' mysql 2>/dev/null | grep -q "healthy"; then
   err "MySQL did not become healthy in time."
   exit 1
 fi
@@ -115,7 +115,7 @@ fi
 if [[ ! -f initdb.sql ]]; then
   docker run --rm guacamole/guacamole:latest /opt/guacamole/bin/initdb.sh --mysql > initdb.sql
 fi
-docker exec -i guac-mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql
+docker exec -i mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql
 
 cat > /etc/ser2net.yaml <<'EOF'
 %YAML 1.1
