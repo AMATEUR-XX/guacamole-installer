@@ -71,7 +71,11 @@ def require_role(user: User, role: str):
 def index(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse("/dashboard", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"request": request, "error": None},
+    )
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -84,8 +88,9 @@ def login(
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "Invalid credentials"},
+            request=request,
+            name="login.html",
+            context={"request": request, "error": "Invalid credentials"},
             status_code=401,
         )
     request.session["user_id"] = user.id
@@ -105,8 +110,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         devices = db.query(Device).order_by(Device.id).all()
         labs = db.query(Lab).order_by(Lab.id.desc()).all()
         return templates.TemplateResponse(
-            "admin_dashboard.html",
-            {
+            request=request,
+            name="admin_dashboard.html",
+            context={
                 "request": request,
                 "user": user,
                 "devices": devices,
@@ -122,8 +128,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     )
     assigned_device = db.query(Device).filter(Device.assigned_user_id == user.id).first()
     return templates.TemplateResponse(
-        "student_dashboard.html",
-        {
+        request=request,
+        name="student_dashboard.html",
+        context={
             "request": request,
             "user": user,
             "labs": labs,
@@ -208,8 +215,9 @@ async def push_config(
     devices_all = db.query(Device).order_by(Device.id).all()
     labs = db.query(Lab).order_by(Lab.id.desc()).all()
     return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
+        request=request,
+        name="admin_dashboard.html",
+        context={
             "request": request,
             "user": user,
             "devices": devices_all,
@@ -254,8 +262,9 @@ def submit_lab(
         db.query(Submission).filter(Submission.user_id == user.id).order_by(Submission.id.desc()).limit(10).all()
     )
     return templates.TemplateResponse(
-        "student_dashboard.html",
-        {
+        request=request,
+        name="student_dashboard.html",
+        context={
             "request": request,
             "user": user,
             "labs": labs,
