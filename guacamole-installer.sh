@@ -161,18 +161,25 @@ if [[ -n "${LAB_PORTAL_GIT_URL}" ]]; then
   rm -rf "${portal_dir:?}"/*
   git clone "${LAB_PORTAL_GIT_URL}" "${portal_dir}"
 else
-  # Use local project content where this installer is located.
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if [[ ! -f "${script_dir}/requirements.txt" || ! -f "${script_dir}/app/main.py" ]]; then
+  # Use local project content from user-provided path.
+  default_source_dir="$(pwd)"
+  read -r -p "Local Lab Portal source path (default ${default_source_dir}): " LOCAL_PORTAL_SOURCE
+  source_dir="${LOCAL_PORTAL_SOURCE:-${default_source_dir}}"
+  if [[ ! -d "${source_dir}" ]]; then
+    err "Local source path does not exist: ${source_dir}"
+    exit 1
+  fi
+  if [[ ! -f "${source_dir}/requirements.txt" || ! -f "${source_dir}/app/main.py" ]]; then
     err "Local lab-portal files were not found near installer."
-    err "Put installer inside the project root OR provide LAB_PORTAL_GIT_URL."
+    err "Expected files in source path: requirements.txt and app/main.py"
+    err "Provide correct Local Lab Portal source path OR use LAB_PORTAL_GIT_URL."
     exit 1
   fi
   rsync -a --delete \
     --exclude '.git' \
     --exclude '.venv' \
     --exclude '__pycache__' \
-    "${script_dir}/" "${portal_dir}/"
+    "${source_dir}/" "${portal_dir}/"
 fi
 
 cd "${portal_dir}"
@@ -192,7 +199,7 @@ read -r -p "TFTP root path (default /srv/tftp): " TFTP_ROOT_PATH
 TFTP_ROOT_PATH="${TFTP_ROOT_PATH:-/srv/tftp}"
 mkdir -p "${TFTP_ROOT_PATH}"
 
-read -r -s -p "ELTEX_USERNAME (for submit checks): " ELTEX_USERNAME
+read -r -p "ELTEX_USERNAME (for submit checks): " ELTEX_USERNAME
 echo ""
 read -r -s -p "ELTEX_PASSWORD (for submit checks): " ELTEX_PASSWORD
 echo ""
