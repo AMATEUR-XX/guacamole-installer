@@ -115,7 +115,20 @@ fi
 if [[ ! -f initdb.sql ]]; then
   docker run --rm guacamole/guacamole:latest /opt/guacamole/bin/initdb.sh --mysql > initdb.sql
 fi
-docker exec -i mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql
+
+# Idempotent DB initialization: skip import if schema already exists.
+guac_schema_exists="$(
+  docker exec mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" -N -s -e \
+  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='guacamole_db' AND table_name='guacamole_user';" \
+  2>/dev/null || echo "0"
+)"
+
+if [[ "${guac_schema_exists}" =~ ^[0-9]+$ ]] && [[ "${guac_schema_exists}" -gt 0 ]]; then
+  log "Guacamole DB schema already initialized, skipping initdb import."
+else
+  docker exec -i mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql || \
+    warn "initdb import failed (possibly already applied). Continuing..."
+fi
 
 cat > /etc/ser2net.yaml <<'EOF'
 %YAML 1.1
