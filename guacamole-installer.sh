@@ -126,8 +126,19 @@ guac_schema_exists="$(
 if [[ "${guac_schema_exists}" =~ ^[0-9]+$ ]] && [[ "${guac_schema_exists}" -gt 0 ]]; then
   log "Guacamole DB schema already initialized, skipping initdb import."
 else
-  docker exec -i mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql || \
-    warn "initdb import failed (possibly already applied). Continuing..."
+  log "Initializing Guacamole DB schema..."
+  docker exec -i mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" guacamole_db < initdb.sql
+  guac_schema_exists_after="$(
+    docker exec mysql mysql -u root "-p${MYSQL_ROOT_PASSWORD}" -N -s -e \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='guacamole_db' AND table_name='guacamole_user';" \
+    2>/dev/null || echo "0"
+  )"
+  if ! [[ "${guac_schema_exists_after}" =~ ^[0-9]+$ ]] || [[ "${guac_schema_exists_after}" -lt 1 ]]; then
+    err "Guacamole DB schema init failed: table guacamole_user not found after import."
+    err "Check mysql logs: docker logs mysql"
+    exit 1
+  fi
+  log "Guacamole DB schema initialized."
 fi
 
 cat > /etc/ser2net.yaml <<'EOF'
@@ -257,6 +268,24 @@ EOF
 systemctl daemon-reload
 systemctl enable --now guac-lab-portal
 systemctl status guac-lab-portal --no-pager -l || true
+
+if ! systemctl is-active --quiet guac-lab-portal; then
+  err "guac-lab-portal service is not active."
+  err "Check logs: journalctl -u guac-lab-portal -n 100 --no-pager"
+  exit 1
+fi
+
+if ss -ltn | awk '{print $4}' | grep -qE ":${LAB_PORT}$"; then
+  log "Lab Portal is listening on port ${LAB_PORT}."
+else
+  warn "Lab Portal service is active but port ${LAB_PORT} is not listening yet."
+fi
+
+if curl -fsS "http://127.0.0.1:${LAB_PORT}" >/dev/null 2>&1; then
+  log "Lab Portal HTTP check passed on localhost."
+else
+  warn "Lab Portal localhost HTTP check failed. Check service logs."
+fi
 
 host_ip="$(hostname -I | awk '{print $1}')"
 echo ""
