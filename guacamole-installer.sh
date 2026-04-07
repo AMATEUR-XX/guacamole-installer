@@ -175,9 +175,13 @@ if [[ -n "${LAB_PORTAL_GIT_URL}" ]]; then
   git clone "${LAB_PORTAL_GIT_URL}" "${portal_dir}"
 else
   # Use local project content from user-provided path.
-  default_source_dir="$(pwd)"
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  default_source_dir="${script_dir}"
   read -r -p "Local Lab Portal source path (default ${default_source_dir}): " LOCAL_PORTAL_SOURCE
   source_dir="${LOCAL_PORTAL_SOURCE:-${default_source_dir}}"
+  if [[ "${source_dir}" != /* ]]; then
+    source_dir="$(realpath "${source_dir}")"
+  fi
   if [[ ! -d "${source_dir}" ]]; then
     err "Local source path does not exist: ${source_dir}"
     exit 1
